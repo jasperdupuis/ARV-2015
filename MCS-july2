@@ -27,6 +27,8 @@ void Pwm_Mode(void)
     The pwm mode is for phase correct and uses a scaling ffactor of 8 to obtain
     a pwm frequency of 3609Hz. The pwm is modified by setting the global variables
     ocra and ocrb.*/
+	
+	cli();
 
 	//Timer configeration
 	TCCR0A = (1<<WGM00);		//phase correct pwm mode generation mode
