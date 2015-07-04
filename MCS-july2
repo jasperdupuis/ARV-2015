@@ -1,0 +1,158 @@
+/*
+ * Motor_driver.c
+ *
+ * Created: 2015-06-18 5:13:05 PM
+ * Modified: 2015-07-02 12:00:00 PM
+ *  Author: Nicholas Campbell
+	Boo:611415
+ */
+
+#include <avr/io.h>
+#include <avr/interrupt.h>
+
+enum DIRECTION {FORWARD,REVERSE,LEFT,RIGHT,OFF,BREAK};
+
+#define TESTMAIN
+
+volatile int ocrb,ocra;
+//isr routine when TCNT0 = OCR0B
+ISR(TIMER0_COMPB_vect){
+	OCR0B = ocrb;
+	ORR0A = ocra;
+}
+
+void Pwm_Mode(void)
+{
+    /*the subroutine sets up pwm for timer 0 on pins 3 and 4 of portb
+    The pwm mode is for phase correct and uses a scaling ffactor of 8 to obtain
+    a pwm frequency of 3609Hz. The pwm is modified by setting the global variables
+    ocra and ocrb.*/
+
+	//Timer configeration
+	TCCR0A = (1<<WGM00);		//phase correct pwm mode generation mode
+	TCCR0A |= (1<<COM0B1)|(1<<COM0A1);		//cleared on compare match upcounting set on compar match down counting
+
+	TCCR0B = (1<<CS01);			//prescaler 8
+
+	/*frequency is 14725600/(8*510) = 3609hz*/
+
+	//Interrupt mask enables
+	OCR0B = 255;				//(sets the pin to logic 1)
+	OCR0A = 255;
+
+	TIMSK0 = (1<<OCIE0B)|(1<<OCIE0A);		//interrupt is enabled for OCR0A and OCR0B
+
+	sei();					//allow interrupts to start
+	return;
+}
+
+void init_motor(void)
+{
+    /*sets the proper outputs and startng state for a motor driver
+	set pinb1,2, to output and set them to high
+	set pinb 3 and 4 to output for pwm where 3 is ocroa and 4 is ocrob*/
+	ocra = 255;
+	ocrb = ocra;
+	Pwm_Mode();
+	DDRB |= (1<<PINB0)|(1<<PINB1)|(1<<PINB4)|(1<<PINB3);
+	PORTB |= (1<<PINB0)|(1<<PINB1);
+}
+
+
+void Motor_Driver(enum DIRECTION dir)
+{
+    /*The function allows the directon of the motor drivers to be set where this
+    is meant to be used with two motors. The function could be expanded to allow
+    speed to be set as well, but in its ccurrent state the speed will be constant but
+    different between the directions*/
+
+	/*Pinb 3 should go to board 1 IN1 and pinb 4 should go to board 2 IN1*/
+	/*pinb 0 should go to board 1 IN2 and pinb 1 should go to board 2 IN2*/
+
+	switch (dir)
+	{
+
+	case FORWARD:
+		//set speed to 100/255 = 60%
+		ocra = 100;
+		ocrb = ocra;
+		PORTB |= (1<<PINB0)|(1<<PINB1);
+		break;
+
+	case REVERSE:
+		//set speed to 155/255 60%
+		ocra = 155;
+		ocrb = ocra;
+		PORTB &= ~((1<<PINB0)|(1<<PINB1));
+		break;
+
+	case LEFT:
+		//set speed to 191/255 25% and 64/255 25%
+		ocra = 191;
+		ocrb = 64;
+		PORTB |= (1<<PINB1);
+		PORTB &= ~(1<<PINB0);
+		break;
+
+	case RIGHT:
+		//set speed to 191/255 25% and 64/255 25%
+		ocra = 64;
+		ocrb = 191;
+		PORTB |= (1<<PINB0);
+		PORTB &= ~(1<<PINB1);
+		break;
+
+	case OFF:
+		ocra = 255;
+		ocrb = 255;
+		PORTB |= (1<<PINB1)|(1<<PINB0);
+		break;
+
+	case BREAK:
+		ocra = 255;
+		ocrb = 255;
+		PORTB &= ~((1<<PINB0)|(1<<PINB1));
+		break;
+
+	default:
+		/*if a unknown direction turn off*/
+		ocra = 255;
+		ocrb = 255;
+		PORTB |= (1<<PINB1)|(1<<PINB0);
+	}
+
+	return;
+}
+
+#ifdef TESTMAIN
+int main(void)
+{
+
+	init_motor();
+	Motor_Driver(BREAK);
+	while(1){
+        if(PIND&_BV(0)){
+            Motor_Driver(BREAK);
+            Motor_Driver(FORWARD);
+
+        }else if(PIND&_BV(1)){
+            Motor_Driver(BREAK);
+            Motor_Driver(REVERSE);
+
+        }else if(PIND&_BV(2)){
+            Motor_Driver(BREAK);
+            Motor_Driver(LEFT);
+
+        }else if(PIND&_BV(3)){
+            Motor_Driver(BREAK);
+            Motor_Driver(RIGHT);
+
+        }else{
+            Motor_Driver(BREAK);
+            Motor_Driver(OFF);
+        }
+
+	}
+
+}
+#endif
