@@ -10,7 +10,7 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
-enum DIRECTION {FORWARD,REVERSE,LEFT,RIGHT,OFF,BREAK};
+enum DIRECTION {FORWARD,REVERSE,LEFT,RIGHT,OFF,BRAKE};
 
 #define TESTMAIN
 
@@ -18,7 +18,10 @@ volatile int ocrb,ocra;
 //isr routine when TCNT0 = OCR0B
 ISR(TIMER0_COMPB_vect){
 	OCR0B = ocrb;
-	ORR0A = ocra;
+}
+
+ISR(TIMER0_COMPA_vect){
+	OCR0A = ocra;
 }
 
 void Pwm_Mode(void)
@@ -77,48 +80,50 @@ void Motor_Driver(enum DIRECTION dir)
 	case FORWARD:
 		//set speed to 100/255 = 60%
 		ocra = 100;
-		ocrb = ocra;
+		ocrb = 100;
 		PORTB |= (1<<PINB0)|(1<<PINB1);
 		break;
 
 	case REVERSE:
 		//set speed to 155/255 60%
 		ocra = 155;
-		ocrb = ocra;
+		ocrb = 155;
 		PORTB &= ~((1<<PINB0)|(1<<PINB1));
 		break;
 
 	case LEFT:
 		//set speed to 191/255 25% and 64/255 25%
-		ocra = 191;
-		ocrb = 64;
+		//passenger wheel
+		ocra = 145;
+		//driver wheel
+		ocrb = 155;
 		PORTB |= (1<<PINB1);
 		PORTB &= ~(1<<PINB0);
 		break;
 
 	case RIGHT:
 		//set speed to 191/255 25% and 64/255 25%
-		ocra = 64;
-		ocrb = 191;
+		ocra = 155;
+		ocrb = 145;
 		PORTB |= (1<<PINB0);
 		PORTB &= ~(1<<PINB1);
 		break;
 
 	case OFF:
-		ocra = 255;
+		//ocra = 255;
 		ocrb = 255;
 		PORTB |= (1<<PINB1)|(1<<PINB0);
 		break;
 
-	case BREAK:
-		ocra = 255;
+	case BRAKE:
+		//ocra = 255;
 		ocrb = 255;
 		PORTB &= ~((1<<PINB0)|(1<<PINB1));
 		break;
 
 	default:
 		/*if a unknown direction turn off*/
-		ocra = 255;
+		//ocra = 255;
 		ocrb = 255;
 		PORTB |= (1<<PINB1)|(1<<PINB0);
 	}
@@ -131,30 +136,26 @@ int main(void)
 {
 
 	init_motor();
-	Motor_Driver(BREAK);
+	Motor_Driver(BRAKE);
+	DDRD = 0;
+	PORTD = 0;
 	while(1){
-        if(PIND&_BV(0)){
-            Motor_Driver(BREAK);
+        if(PIND&_BV(2)){
             Motor_Driver(FORWARD);
 
-        }else if(PIND&_BV(1)){
-            Motor_Driver(BREAK);
+        }else if(PIND&_BV(3)){
             Motor_Driver(REVERSE);
 
-        }else if(PIND&_BV(2)){
-            Motor_Driver(BREAK);
+        }else if(PIND&_BV(4)){
             Motor_Driver(LEFT);
 
-        }else if(PIND&_BV(3)){
-            Motor_Driver(BREAK);
+        }else if(PIND&_BV(5)){
             Motor_Driver(RIGHT);
 
         }else{
-            Motor_Driver(BREAK);
+            Motor_Driver(BRAKE);
             Motor_Driver(OFF);
         }
-
 	}
-
 }
 #endif
