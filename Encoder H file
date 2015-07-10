@@ -1,0 +1,24 @@
+ifndef ENCODER_LIB_H
+#define ENCODER_LIB_H
+
+#include <avr/interrupt.h>
+#include <stdint.h>
+
+volatile uint8_t lefttick;
+volatile uint8_t righttick;
+
+uint8_t left_encoder_count(void);
+
+uint8_t right_encoder_count(void);
+
+void reset_encoders(void);
+
+void encoder_setup(void);
+
+ISR(INT0_vect);
+
+ISR(INT1_vect);
+
+ISR(__vector_default);
+
+#endif
