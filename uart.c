@@ -1,6 +1,4 @@
-#include <stdio.h>
-#include <avr/io.h>
-#include <avr/pgmspace.h>
+
 #include "encoderlib.h"
 
 static int uart_putchar(char c, FILE *stream);
