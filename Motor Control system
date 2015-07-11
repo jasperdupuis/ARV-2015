@@ -5,96 +5,70 @@
  *  Author: Jasper Dupuis
  */ 
 
+/* This enables PuTTY testing. Put this in any module that requires testing.
+
+Must include the command init_uart(); in the main program to be tested.
+
+*/
 
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include "encoderlib.h"
 
-#include <stdio.h> // FOR PUTTY
-#include <avr/pgmspace.h> // FOR PUTTY
 
-#define PWM_LEFT OCR0A
-#define PWM_RIGHT OCR0B
-#define timer2_upcount 2
+
+#define PWM_LEFT ocra
+#define PWM_RIGHT ocrb
+#define timer2_upcount 56
 #define speed 1
 
 volatile uint8_t left;
 volatile uint8_t right;
 volatile uint8_t timer2;
+volatile uint8_t ocra;
+volatile uint8_t ocrb;
 
 void PWM_SETUP(void);
 void TIMER2_SETUP(void);
 
-void STOP_TIMERS(void);
-void START_TIMERS(void);
-
-int FORWARD(uint8_t traveltime);
-
-// PUTTY TESTING BELOW
-
-static int uart_putchar(char c, FILE *stream);
-static int uart_getchar(FILE *stream);
-FILE mystdout = FDEV_SETUP_STREAM(uart_putchar, NULL, _FDEV_SETUP_WRITE);
-FILE mystdin = FDEV_SETUP_STREAM(NULL, uart_getchar, _FDEV_SETUP_READ);
-
-static int uart_putchar(char c, FILE *stream)
-{
-	loop_until_bit_is_set(UCSR0A, UDRE0);
-	UDR0 = c;
-	return 0;
-}
-
-static int uart_getchar(FILE *stream)
-{
-	loop_until_bit_is_set(UCSR0A, RXC0); /* Wait until data exists. */
-	return UDR0;
-}
-
-void init_uart(void)
-{
-	UCSR0B = (1<<RXEN0) | (1<<TXEN0);
-	UBRR0 = 7;
-	stdout = &mystdout;
-	stdin = &mystdin;
-}
-
-// PUTTY TESTING ABOVE // 
-
 int main(void)
 {
    cli();
-   
    PWM_SETUP();
    TIMER2_SETUP();
    encoder_setup();
    
+   init_uart();
+   
+   PORTB &= ~((1<<PB2)|(1<<PB0)); // IN1 0V and PWM on IN2 => Motors Stop.
+   
+   PWM_LEFT = 200;
+   PWM_RIGHT = 197;
+   
    sei();					//allow interrupts to start
-   START_TIMERS();
-   uint8_t travelticks=200;
-   //FORWARD(travelticks);   
+   
    while(1)
    {
-	   continue;//nothing to see here.
-   }
-}
-
-int FORWARD(uint8_t distance)
-{
-	PORTB = 5; // {IN1 = PWM, IN2 = +5V} => Forwards
-	PWM_LEFT = 200; // Initial PWM values.
-	PWM_RIGHT = 200;
-/*	START_TIMERS();
-	while(right_encoder_count()<distance)
-	{
-		// move forward the specified distance.
+	   if(timer2 >= timer2_upcount)
+	   {
+	
+				if(righttick<speed){
+					PWM_RIGHT--;
+				}else if(righttick>speed){
+					PWM_RIGHT++;
+				}
+	 
+				if(lefttick<speed){
+					PWM_LEFT--;
+				}else if(lefttick>speed){
+					PWM_LEFT++;
+				}
+				timer2 = 0;
+				lefttick = 0;
+				righttick = 0;
+		}
 	}
-	STOP_TIMERS();
-	printf_P(PSTR("The left count is %d\n"),left_encoder_count());
-	printf_P(PSTR("The right count is %d\n"),right_encoder_count());
-	reset_encoders();
-*/
-	return(1);
 }
 
 /* This function sets 8-bit Timer 2 to CTC mode with a prescale of 1024. This makes the frequency of 
@@ -105,40 +79,24 @@ With OCR2A = 255 and timer2_upcount = 2, the effective frequency of interrupt is
 
 */
 
-void STOP_TIMERS(void)
-{
-	TCCR0B |= ~(1<<CS01); // STOPS PWM.
-	TCCR2B |= ~(1<<CS22)|(1<<CS21)|(1<<CS20); // STOPS CONTROL TIMER.
-	timer2=0;
-}
-
-void START_TIMERS(void)
-{
-	timer2=0;
-	TCCR0B = (1<<CS01); // Begins the PWM clock at 1/8 prescale.
-	TCCR2B |= (1<<CS22)|(1<<CS21)|(1<<CS20); // N = 1024. Effective timer frequency is f = (f_clock)/ (2 * N * (1+ OCR2A).
-}
-
 void TIMER2_SETUP(void)
 {
 	 timer2=0;
-	 
-	 DDRD=0xff; // Port d is all output. For POC of timer operation.
-
 	 //Timer 2 setup.
-	 
-	 TCCR2A |= (1<<COM2A1) | (1<<COM2A0) | (1<<WGM21) ; //COM2 bits: Set OC2A on compare match. WGM2:0 = 2 enables CTC mode.
-	 OCR2A = 0x0F; // Triggers when TCNT2 = 255.
+	 TCCR2A = (1<<COM2A1) | (1<<COM2A0) | (1<<WGM21) ; //COM2 bits: Set OC2A on compare match. WGM2:0 = 2 enables CTC mode.
+	 OCR2A = 0xFF; // Triggers when TCNT2 = 255.
 	 TCNT2 = 0; // initial value;
 	 TIMSK2 = (1<<OCIE2A);
-	 // Effective compare frequency is f = f = (f_clock)/ (2 * N * (1+ OCR2A). f =~ 26Hz.
-	 // from uint8_t variable timer2, effective frequency is 26/2 =~ 13 Hz.
+	 TCCR2B = (1<<CS21); // N = 8. Effective timer frequency is f = (f_clock)/ (2 * N * (1+ OCR2A).
+	 
+	 // Effective compare frequency is f = f = (f_clock)/ (2 * N * (1+ OCR2A).
+	 // from uint8_t variable timer2, effective frequency is .
 	return;
 }
 
 /* 
 This function enables phase correct PWM output. This was suggested by the AVR 
-datasheet as the preferred method of PWM for motor control. 
+datasheet as the preferred method of PWM for motor control. The duty cycles are 
 
 N = 8, by the prescale value below.
 The effective PWM frequency is given by f = (f_clock) / (510 * N) =~ 3431 Hz.
@@ -149,32 +107,52 @@ To decrease forward motor speed, increase PWM_LEFT or PWM_RIGHT.
 LEFT_PWM is PB3, the Blue lead on the left of the solder board.
 PWM_RIGHT is PB4, the blue lead on the right of the solder board.
 
+Due to a hardware install error, PWM right runs on inverted logic.
 
 */
 
 void PWM_SETUP(void)
 {
-   DDRB=0xFF;
+	
+   DDRB|=(1<<PB0)|(1<<PB2)|(1<<PB3)|(1<<PB4);
+
    //Timer configuration off of which output compare 1 runs.
    TCCR0A = (1<<WGM00);		//Phase correct PWM mode.
    TCCR0A |= (1<<COM0B1)|(1<<COM0A1);		// Clears on count up, sets on count down. Symmetric about peak value 0xFF.
+
+   TCCR0B = (1<<CS01);			//prescaler 8
+
    //Interrupt mask enables
-   TIMSK0 = (1<<OCIE0B)|(1<<OCIE0A);		//interrupt is enabled for OCR0A and OCR0B (PWM LEFT and PWM RIGHT)
+   PWM_LEFT = 255;				//(sets the pin to logic 1)
+   PWM_RIGHT = 255;
+
+   TIMSK0 = (1<<OCIE0B)|(1<<OCIE0A);		//interrupt is enabled for OCR0A and OCR0B
    return;
 }
+/*
+ISR(TIMER0_COMPA_vect){
+	OCR0A = PWM_LEFT;
+}
+
+ISR(TIMER0_COMPB_vect){
+	OCR0B = PWM_RIGHT;
+}
+
+*/
 
 ISR(TIMER2_COMPA_vect)
 {
 	timer2++;
-	left = left_encoder_count();
-	right = right_encoder_count();
+/*
 	if(timer2 == timer2_upcount)
 	{
-		PORTD^=1;
-		if(left<speed) PWM_LEFT--;
-		if(right<speed) PWM_RIGHT--;
-		if(left>speed) PWM_LEFT=PWM_LEFT +3;
-		if(right>speed) PWM_RIGHT=PWM_RIGHT+3;
+		if(lefttick<speed) PWM_LEFT--;
+		if(righttick<speed) PWM_RIGHT--;
+		if(lefttick>speed) PWM_LEFT++;
+		if(righttick>speed) PWM_RIGHT++;
 		reset_encoders();
+		timer2=0;
 	}
+*/
+	TCNT2 = 0;
 }
