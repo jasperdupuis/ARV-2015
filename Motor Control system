@@ -13,16 +13,17 @@ Must include the command init_uart(); in the main program to be tested.
 
 #include "encoderlib.h"
 
-#define PWM_LEFT ocra
-#define PWM_RIGHT ocrb
-#define timer2_upcount 112 // Varies the encoder sampling frequency. Sample frequency is f= { [ (f_clock)/(2*8*(1+255) ] / timer2_upcount} =~ 3417/timer2_upcount = 30.5Hz.
+#define PWM_LEFT OCR0A
+//#define PWM_RIGHT OCR0B
+#define timer2_upcount 28 // Varies the encoder sampling frequency. Sample frequency is f= { [ (f_clock)/(2*8*(1+255) ] / timer2_upcount} =~ 3417/timer2_upcount = 30.5Hz.
 #define speed 1
+#define reference 5
 
 volatile uint8_t left;
 volatile uint8_t right;
 volatile uint8_t timer2;
-volatile uint8_t ocra;
-volatile uint8_t ocrb;
+
+volatile uint8_t PWM_RIGHT;
 
 void PWM_SETUP(void);
 void TIMER2_SETUP(void);
@@ -38,32 +39,48 @@ int main(void)
    
    PORTB &= ~((1<<PB2)|(1<<PB0)); // IN1 0V and PWM on IN2 => Motors Stop.
    
-   PWM_LEFT = 225;
-   PWM_RIGHT = 223;
+   PWM_LEFT = 254;
+   PWM_RIGHT = 254;
    
    sei();					//allow interrupts to start
    
    while(1)
    {
-	   printf_P(PSTR("Right: %d	Left:%d\n"),right_encoder_count(),left_encoder_count()); // For testing with PuTTy.
 	   if(timer2 >= timer2_upcount)
 	   {
 	
 				if(righttick<speed){
 					PWM_RIGHT--;
+					printf_P(PSTR("Right DECREMENT %d \n"),PWM_RIGHT); // For testing with PuTTy.
 				}else if(righttick>speed){
 					PWM_RIGHT++;
+					printf_P(PSTR("INCREMENT right %d \n"),PWM_RIGHT); // For testing with PuTTy.
 				}
 	 
 				if(lefttick<speed){
-					PWM_LEFT--;
+					//PWM_LEFT--;
 				}else if(lefttick>speed){
-					PWM_LEFT++;
+					//PWM_LEFT++;
 				}
 				timer2 = 0;
-				lefttick = 0;
-				righttick = 0;
+				//lefttick = 0;
+				//righttick = 0;
 		}
+		/*
+		if(righttick>=reference)
+		{
+			if (timer2<TIME_PERIOD) PWM_RIGHT++;
+			if (timer2>TIME_PERIOD) PWM_RIGHT--;
+			
+		}
+		if(lefttick>=reference)
+		{
+			if (timer2<TIME_PERIOD) PWM_LEFT++;
+			if (timer2>TIME_PERIOD) PWM_LEFT--;
+		}
+	
+		*/
+		
 	}
 }
 
@@ -111,7 +128,7 @@ void PWM_SETUP(void)
 {
 	
    DDRB|=(1<<PB0)|(1<<PB2)|(1<<PB3)|(1<<PB4);
-
+   PORTB &= ~((1<<PB0)|(1<<PB2));
    //Timer configuration off of which output compare 1 runs.
    TCCR0A = (1<<WGM00);		//Phase correct PWM mode.
    TCCR0A |= (1<<COM0B1)|(1<<COM0A1);		// Clears on count up, sets on count down. Symmetric about peak value 0xFF.
@@ -119,22 +136,12 @@ void PWM_SETUP(void)
    TCCR0B = (1<<CS01);			//prescaler 8
 
    //Interrupt mask enables
-   PWM_LEFT = 255;				//(sets the pin to logic 1)
-   PWM_RIGHT = 255;
+   PWM_LEFT = 254;				//(sets the pin to logic 1)
+   PWM_RIGHT = 254;
 
    TIMSK0 = (1<<OCIE0B)|(1<<OCIE0A);		//interrupt is enabled for OCR0A and OCR0B
    return;
 }
-/*
-ISR(TIMER0_COMPA_vect){
-	OCR0A = PWM_LEFT;
-}
-
-ISR(TIMER0_COMPB_vect){
-	OCR0B = PWM_RIGHT;
-}
-
-*/
 
 ISR(TIMER2_COMPA_vect)
 {
@@ -151,4 +158,8 @@ ISR(TIMER2_COMPA_vect)
 	}
 */
 	TCNT2 = 0;
+}
+
+ISR(TIMER0_COMPB_vect){
+	OCR0B = PWM_RIGHT;
 }
