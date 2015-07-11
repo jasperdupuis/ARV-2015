@@ -1,0 +1,83 @@
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include "encoderlib.h"
+
+static uint8_t timer2_upcount = 2;
+
+uint8_t timer2;
+
+void PWM_SETUP(void);
+
+ISR(TIMER2_COMPA_vect);
+
+ISR(__vector_default);
+
+
+int main(void)
+{
+   cli();
+   PWM_SETUP();
+   TIMER2_SETUP();
+   encoder_setup();
+   sei();					//allow interrupts to start
+   while(1)
+   {
+	   continue;//nothing to see here.
+   }
+}
+
+/* This function sets 8-bit Timer 2 to CTC mode with a prescale of 1024. This makes the frequency of 
+interrupt entirely dependent on the value of OCR2A and the predefined timer2 value. The timer interrupt mask
+for output compare A is set and called by ISR(TIMER2_COMPA_vect). 
+
+With OCR2A = 255 and timer2_upcount = 2, the effective frequency of interrupt is 13Hz.
+*/
+
+void TIMER2_SETUP(void)
+{
+	 timer2=0;
+	 DDRD=0xff; // Port d is all output. For POC of timer operation.
+	 //Timer 2 setup.
+	 TCCR2A |= (1<<COM2A1) | (1<<COM2A0) | (1<<WGM21) ; //COM2 bits: Set OC2A on compare match. WGM2:0 = 2 enables CTC mode.
+	 OCR2A = 0xFF; // Triggers when TCNT2 = 255.
+	 TCNT2 = 0; // initial value;
+	 TIMSK2 = (1<<OCIE2A);
+	 TCCR2B |= (1<<CS22)|(1<<CS21)|(1<<CS20); // N = 1024. Effective timer frequency is f = (f_clock)/ (2 * N * (1+ OCR2A).
+	 // Effective compare frequency is f = f = (f_clock)/ (2 * N * (1+ OCR2A). f =~ 26Hz.
+	 // from uint8_t variable timer2, effective frequency is 26/2 =~ 13 Hz.
+	return;
+}
+
+void PWM_SETUP(void)
+{
+   DDRB=0xFF;
+
+   //Timer configuration off of which output compare 1 runs.
+   TCCR0A = (1<<WGM00);		//Phase correct PWM mode.
+   TCCR0A |= (1<<COM0B1)|(1<<COM0A1);		// Clears on count up, sets on count down. Symmetric about peak value 0xFF.
+
+   TCCR0B = (1<<CS01);			//prescaler 8
+
+   /*frequency is 14725600/(8*510) =~  3609hz*/
+
+   //Interrupt mask enables
+   OCR0B = 127;				//(sets the pin to logic 1)
+   OCR0A = 127;
+
+   TIMSK0 = (1<<OCIE0B)|(1<<OCIE0A);		//interrupt is enabled for OCR0A and OCR0B
+   return;
+}
+
+ISR(__vector_default)
+{
+	// nothing to see here.
+}
+
+ISR(TIMER2_COMPA_vect)
+{
+	timer2++;
+	if(timer2 == timer2_upcount){
+	PORTD^=1;
+	timer2=0;
+	}
+}
