@@ -11,16 +11,11 @@ Must include the command init_uart(); in the main program to be tested.
 
 */
 
-
-#include <avr/io.h>
-#include <avr/interrupt.h>
 #include "encoderlib.h"
-
-
 
 #define PWM_LEFT ocra
 #define PWM_RIGHT ocrb
-#define timer2_upcount 56
+#define timer2_upcount 112 // Varies the encoder sampling frequency. Sample frequency is f= { [ (f_clock)/(2*8*(1+255) ] / timer2_upcount} =~ 3417/timer2_upcount = 30.5Hz.
 #define speed 1
 
 volatile uint8_t left;
@@ -43,13 +38,14 @@ int main(void)
    
    PORTB &= ~((1<<PB2)|(1<<PB0)); // IN1 0V and PWM on IN2 => Motors Stop.
    
-   PWM_LEFT = 200;
-   PWM_RIGHT = 197;
+   PWM_LEFT = 225;
+   PWM_RIGHT = 223;
    
    sei();					//allow interrupts to start
    
    while(1)
    {
+	   printf_P(PSTR("Right: %d	Left:%d\n"),right_encoder_count(),left_encoder_count()); // For testing with PuTTy.
 	   if(timer2 >= timer2_upcount)
 	   {
 	
