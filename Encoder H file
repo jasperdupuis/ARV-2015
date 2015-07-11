@@ -4,21 +4,26 @@ ifndef ENCODER_LIB_H
 #include <avr/interrupt.h>
 #include <stdint.h>
 
-volatile uint8_t lefttick;
-volatile uint8_t righttick;
+extern volatile uint8_t lefttick;
+extern volatile uint8_t righttick;
 
-uint8_t left_encoder_count(void);
+extern uint8_t left_encoder_count(void);
 
-uint8_t right_encoder_count(void);
+extern uint8_t right_encoder_count(void);
 
-void reset_encoders(void);
+extern void reset_encoders(void);
 
-void encoder_setup(void);
+exetern void encoder_setup(void);
 
-ISR(INT0_vect);
+extern ISR(INT0_vect);
 
-ISR(INT1_vect);
+extern ISR(INT1_vect);
 
-ISR(__vector_default);
+extern ISR(__vector_default);
+
+/*uart entry functions*/
+extern static int uart_putchar(char, FILE *);
+extern static int uart_getchar(FILE *);
+extern void init_uart(void);
 
 #endif
