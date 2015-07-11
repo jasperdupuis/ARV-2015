@@ -64,16 +64,15 @@ void init_uart(void)
 int main(void)
 {
    cli();
+   
    PWM_SETUP();
    TIMER2_SETUP();
    encoder_setup();
    
-   DDRB = 0xFF; // Port B is All output.
-   PORTB=~24;
    sei();					//allow interrupts to start
-   
+   START_TIMERS();
    uint8_t travelticks=200;
-   FORWARD(travelticks);   
+   //FORWARD(travelticks);   
    while(1)
    {
 	   continue;//nothing to see here.
@@ -85,8 +84,8 @@ int FORWARD(uint8_t distance)
 	PORTB = 5; // {IN1 = PWM, IN2 = +5V} => Forwards
 	PWM_LEFT = 200; // Initial PWM values.
 	PWM_RIGHT = 200;
-	START_TIMERS();
-	for(uint8_t i = 0; i<distance ; i++)
+/*	START_TIMERS();
+	while(right_encoder_count()<distance)
 	{
 		// move forward the specified distance.
 	}
@@ -94,6 +93,7 @@ int FORWARD(uint8_t distance)
 	printf_P(PSTR("The left count is %d\n"),left_encoder_count());
 	printf_P(PSTR("The right count is %d\n"),right_encoder_count());
 	reset_encoders();
+*/
 	return(1);
 }
 
@@ -122,13 +122,15 @@ void START_TIMERS(void)
 void TIMER2_SETUP(void)
 {
 	 timer2=0;
+	 
 	 DDRD=0xff; // Port d is all output. For POC of timer operation.
+
 	 //Timer 2 setup.
+	 
 	 TCCR2A |= (1<<COM2A1) | (1<<COM2A0) | (1<<WGM21) ; //COM2 bits: Set OC2A on compare match. WGM2:0 = 2 enables CTC mode.
 	 OCR2A = 0x0F; // Triggers when TCNT2 = 255.
 	 TCNT2 = 0; // initial value;
 	 TIMSK2 = (1<<OCIE2A);
-	 TCCR2B |= (1<<CS22)|(1<<CS21)|(1<<CS20); // N = 1024. Effective timer frequency is f = (f_clock)/ (2 * N * (1+ OCR2A).
 	 // Effective compare frequency is f = f = (f_clock)/ (2 * N * (1+ OCR2A). f =~ 26Hz.
 	 // from uint8_t variable timer2, effective frequency is 26/2 =~ 13 Hz.
 	return;
@@ -136,7 +138,7 @@ void TIMER2_SETUP(void)
 
 /* 
 This function enables phase correct PWM output. This was suggested by the AVR 
-datasheet as the preferred method of PWM for motor control. The duty cycles are 
+datasheet as the preferred method of PWM for motor control. 
 
 N = 8, by the prescale value below.
 The effective PWM frequency is given by f = (f_clock) / (510 * N) =~ 3431 Hz.
@@ -147,14 +149,12 @@ To decrease forward motor speed, increase PWM_LEFT or PWM_RIGHT.
 LEFT_PWM is PB3, the Blue lead on the left of the solder board.
 PWM_RIGHT is PB4, the blue lead on the right of the solder board.
 
-Due to a hardware install error, PWM right runs on inverted logic.
 
 */
 
 void PWM_SETUP(void)
 {
    DDRB=0xFF;
-
    //Timer configuration off of which output compare 1 runs.
    TCCR0A = (1<<WGM00);		//Phase correct PWM mode.
    TCCR0A |= (1<<COM0B1)|(1<<COM0A1);		// Clears on count up, sets on count down. Symmetric about peak value 0xFF.
@@ -170,15 +170,11 @@ ISR(TIMER2_COMPA_vect)
 	right = right_encoder_count();
 	if(timer2 == timer2_upcount)
 	{
-		if(left<right) // if left is slower than right
-		{
-			PWM_LEFT--; // speed up left
-			PWM_RIGHT++; // slow down right
-		}
-		if(right<left) // if right is slower than left
-		{
-			PWM_RIGHT--; // speed up right
-			PWM_LEFT++; // slow down left
-		}
+		PORTD^=1;
+		if(left<speed) PWM_LEFT--;
+		if(right<speed) PWM_RIGHT--;
+		if(left>speed) PWM_LEFT=PWM_LEFT +3;
+		if(right>speed) PWM_RIGHT=PWM_RIGHT+3;
+		reset_encoders();
 	}
 }
