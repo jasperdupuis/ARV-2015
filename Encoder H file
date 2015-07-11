@@ -15,12 +15,6 @@ extern void reset_encoders(void);
 
 exetern void encoder_setup(void);
 
-extern ISR(INT0_vect);
-
-extern ISR(INT1_vect);
-
-extern ISR(__vector_default);
-
 /*uart entry functions*/
 extern static int uart_putchar(char, FILE *);
 extern static int uart_getchar(FILE *);
