@@ -1,0 +1,197 @@
+/*
+ * MCS_Encoder_1.c
+ *
+ * Created: 10/07/2015 3:02:41 PM
+ *  Author: Nick Campbell, Jasper Dupuis
+ */ 
+
+/* 
+
+Must include the command init_uart(); in the main program to enable PuTTy testing.
+
+*/
+
+#include "encoder.h"
+
+#define PWM_LEFT OCR0A
+#define PWM_RIGHT OCR0B
+#define timer2_upcount 26 // Varies the encoder sampling frequency. 
+/*
+Sample frequency is f= { [ (f_clock)/(2*1024*(1+255) ] / timer2_upcount} =~ 26/timer2_upcount = =~ 1Hz
+	*/
+#define speed 3
+/*
+The number of ticks we look for per feedback loop. 1 tick = ~1cm/s.
+12ticks = ~10cm/s
+*/
+#define reference 5
+
+volatile uint8_t timer2;
+
+
+void PWM_SETUP(void);
+void TIMER2_SETUP(void);
+
+int main(void)
+{
+   cli();
+   PWM_SETUP();
+   TIMER2_SETUP();
+   encoder_setup();
+   
+   init_uart();
+   
+   uint8_t l = 0;
+   uint8_t r = 0;
+   
+   uint8_t left;
+   uint8_t right;
+   
+   volatile uint16_t avgl ;
+   volatile uint16_t avgr ;
+   
+   volatile uint16_t sum_left = 0;
+   volatile uint16_t sum_right = 0;
+   
+   PORTB |= ((1<<PB2)|(1<<PB0)); // IN1 0V and PWM on IN2 => Motors Stop.
+   
+   printf_P(PSTR("HELLO!\n")); // For testing with PuTTy
+   
+   avgl = left = PWM_LEFT = 45; //65;
+   avgr = right = PWM_RIGHT = 45;
+   
+   sei();					//allow interrupts to start
+   
+   while(1)
+   {
+
+			if(timer2 >= timer2_upcount)
+			{
+				
+				if(righttick<speed){
+					PWM_RIGHT++;
+				}else if(righttick>speed){
+					PWM_RIGHT--;
+				}else{
+					sum_right += PWM_RIGHT;
+					r++;
+				}
+				
+				//printf_P(PSTR("  - - - - -- - - - - - - - - - - - - \n")); // For testing with PuTTy.
+				//printf_P(PSTR("  - - - - -IF CONDITION (Precedes): %d \n"),lefttick); // For testing with PuTTy.
+				//printf_P(PSTR(" left: %d \n"),lefttick); // For testing with PuTTy.
+				//printf_P(PSTR(" left: %d \n"),lefttick);
+				if(lefttick<speed){
+					PWM_LEFT++;
+				}else if(lefttick>speed){
+					PWM_LEFT--;
+				}else{
+					sum_left += PWM_LEFT;
+					l++;
+				}
+				
+				/*weight the current speed with the average of the past 8 correct pwm speeds as a
+				3/4 and 1/4 ratio*/
+				PWM_LEFT = (PWM_LEFT+PWM_LEFT+PWM_LEFT+avgl+1)>>2;
+				PWM_RIGHT = (PWM_RIGHT+PWM_RIGHT+PWM_RIGHT+avgr+1)>>2;
+				
+				printf_P(PSTR("  - - - - - I N T E R V A L (1s) - - - - - - - \n")); // For testing with PuTTy.
+				printf_P(PSTR(" Right[PWM: %d  tick: %d				"),PWM_RIGHT,righttick); // For testing with PuTTy.
+				printf_P(PSTR(" Left[PWM: %d  tick: %d			 \n"),PWM_LEFT,lefttick); // For testing with PuTTy.
+
+				timer2 = 0;
+				lefttick = 0;
+				righttick = 0;
+			}
+		
+		/*if 8 correct left ticks have been performed get the average of them*/
+		if(l >= 8){
+			avgl = (sum_left+1)>>3;
+			sum_left = 0;
+			l = 0;
+		}
+		/*if 8 correct right ticks have been performed get the average of them*/
+		if(r >= 8){
+			avgr = (sum_right+1)>>3;
+			sum_right = 0;
+
+			r = 0;  
+		}
+
+	}
+}
+
+/* This function sets 8-bit Timer 2 to CTC mode with a prescale of 1024. This makes the frequency of 
+interrupt entirely dependent on the value of OCR2A and the predefined timer2 value. The timer interrupt mask
+for output compare A is set and called by ISR(TIMER2_COMPA_vect). 
+
+With OCR2A = 255 and timer2_upcount = 2, the effective frequency of interrupt is 13Hz.
+
+*/
+
+void TIMER2_SETUP(void)
+{
+	 timer2=0;
+	 //Timer 2 setup.
+	 TCCR2A = (1<<COM2A1) | (1<<COM2A0) | (1<<WGM21) ; //COM2 bits: Set OC2A on compare match. WGM2:0 = 2 enables CTC mode.
+	 OCR2A = 0xFF; // Triggers when TCNT2 = 255.
+	 TCNT2 = 0; // initial value;
+	 TIMSK2 = (1<<OCIE2A);
+	 TCCR2B = (1<<CS22)|(1<<CS21)|(1<<CS20); // N = 1024. Effective timer frequency is f = (f_clock)/ (2 * N * (1+ OCR2A).
+	 
+	 // Effective compare frequency is f = f = (f_clock)/ (2 * N * (1+ OCR2A) = 26Hz.
+	 // from uint8_t variable timer2, effective frequency is .
+	return;
+}
+
+/* 
+This function enables phase correct PWM output. This was suggested by the AVR 
+datasheet as the preferred method of PWM for motor control. The duty cycles are 
+
+N = 8, by the prescale value below.
+The effective PWM frequency is given by f = (f_clock) / (510 * N) =~ 3431 Hz.
+
+To increase forward motor speed (and/or torque), decrease PWM_LEFT or PWM_RIGHT.
+To decrease forward motor speed, increase PWM_LEFT or PWM_RIGHT.
+
+LEFT_PWM is PB3, the Blue lead on the left of the solder board.
+PWM_RIGHT is PB4, the blue lead on the right of the solder board.
+
+Due to a hardware install error, PWM right runs on inverted logic.
+
+*/
+
+void PWM_SETUP(void)
+{
+	
+   DDRB|=(1<<PB0)|(1<<PB2)|(1<<PB3)|(1<<PB4);
+   PORTB &= ~((1<<PB0)|(1<<PB2));
+   //Timer configuration off of which output compare 1 runs.
+   TCCR0A = (1<<WGM00);		//Phase correct PWM mode.
+   TCCR0A |= (1<<COM0B1)|(1<<COM0A1);		// Clears on count up, sets on count down. Symmetric about peak value 0xFF.
+
+   TCCR0B = (1<<CS01)|(1<<CS00);			//prescaler 8
+  // TIMSK0 = (1<<OCIE0A)|(1<<OCIE0B); // enable compare interrupt 
+
+   //Interrupt mask enables
+   PWM_LEFT = 0;				//(sets the pin to logic 1 AKA sets motors to STOP)
+   PWM_RIGHT = 0;
+   return;
+}
+
+ISR(TIMER2_COMPA_vect)
+{
+	timer2++;
+/*
+	if(timer2 == timer2_upcount)
+	{
+		if(lefttick<speed) PWM_LEFT--;
+		if(righttick<speed) PWM_RIGHT--;
+		if(lefttick>speed) PWM_LEFT++;
+		if(righttick>speed) PWM_RIGHT++;
+		reset_encoders();
+		timer2=0;
+	}
+*/
+	TCNT2 = 0;
+}
