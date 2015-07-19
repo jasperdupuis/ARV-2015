@@ -2,28 +2,33 @@
  * MCS_Encoder_1.c
  *
  * Created: 10/07/2015 3:02:41 PM
- *  Author: Jasper Dupuis
+ *  Author: Nick Campbell, Jasper Dupuis
  */ 
 
-/* This enables PuTTY testing. Put this in any module that requires testing.
+/* 
 
-Must include the command init_uart(); in the main program to be tested.
+Must include the command init_uart(); in the main program to enable PuTTy testing.
 
 */
 
 #include "encoderlib.h"
 
 #define PWM_LEFT OCR0A
-//#define PWM_RIGHT OCR0B
-#define timer2_upcount 28 // Varies the encoder sampling frequency. Sample frequency is f= { [ (f_clock)/(2*8*(1+255) ] / timer2_upcount} =~ 3417/timer2_upcount = 30.5Hz.
-#define speed 1
+#define PWM_RIGHT OCR0B
+#define timer2_upcount 26 // Varies the encoder sampling frequency. 
+/*
+Sample frequency is f= { [ (f_clock)/(2*1024*(1+255) ] / timer2_upcount} =~ 26/timer2_upcount = =~ 1Hz
+	*/
+#define speed 12
+/*
+The number of ticks we look for per feedback loop. 1 tick = ~1cm/s.
+12ticks = ~10cm/s
+*/
 #define reference 5
 
 volatile uint8_t left;
 volatile uint8_t right;
 volatile uint8_t timer2;
-
-volatile uint8_t PWM_RIGHT;
 
 void PWM_SETUP(void);
 void TIMER2_SETUP(void);
@@ -37,35 +42,47 @@ int main(void)
    
    init_uart();
    
-   PORTB &= ~((1<<PB2)|(1<<PB0)); // IN1 0V and PWM on IN2 => Motors Stop.
+   PORTB |= ((1<<PB2)|(1<<PB0)); // IN1 0V and PWM on IN2 => Motors Stop.
    
-   PWM_LEFT = 254;
-   PWM_RIGHT = 254;
+   printf_P(PSTR("HELLO!\n")); // For testing with PuTTy
+   
+   PWM_LEFT = 65; //65;
+   PWM_RIGHT = 65;
    
    sei();					//allow interrupts to start
    
    while(1)
    {
-	   if(timer2 >= timer2_upcount)
-	   {
 	
+			if(timer2 >= timer2_upcount)
+			{
+				printf_P(PSTR(" left: %d \n"),left_encoder_count());
 				if(righttick<speed){
-					PWM_RIGHT--;
-					printf_P(PSTR("Right DECREMENT %d \n"),PWM_RIGHT); // For testing with PuTTy.
+					//PWM_RIGHT++;
 				}else if(righttick>speed){
-					PWM_RIGHT++;
-					printf_P(PSTR("INCREMENT right %d \n"),PWM_RIGHT); // For testing with PuTTy.
+					//PWM_RIGHT--;
 				}
-	 
+				
+				//printf_P(PSTR("  - - - - -- - - - - - - - - - - - - \n")); // For testing with PuTTy.
+				//printf_P(PSTR("  - - - - -IF CONDITION (Precedes): %d \n"),lefttick); // For testing with PuTTy.
+				//printf_P(PSTR(" left: %d \n"),lefttick); // For testing with PuTTy.
+				//printf_P(PSTR(" left: %d \n"),lefttick);
 				if(lefttick<speed){
-					//PWM_LEFT--;
-				}else if(lefttick>speed){
 					//PWM_LEFT++;
+				}else if(lefttick>speed){
+					//PWM_LEFT--;
 				}
+				
+				//printf_P(PSTR("  - - - - - I N T E R V A L (1s) - - - - - - - \n")); // For testing with PuTTy.
+				//printf_P(PSTR(" right: %d				"),PWM_RIGHT); // For testing with PuTTy.
+				//printf_P(PSTR(" left: %d \n"),PWM_LEFT); // For testing with PuTTy.
+				
 				timer2 = 0;
-				//lefttick = 0;
-				//righttick = 0;
-		}
+				lefttick = 0;
+				righttick = 0;
+			}
+
+
 		/*
 		if(righttick>=reference)
 		{
@@ -80,7 +97,6 @@ int main(void)
 		}
 	
 		*/
-		
 	}
 }
 
@@ -100,9 +116,9 @@ void TIMER2_SETUP(void)
 	 OCR2A = 0xFF; // Triggers when TCNT2 = 255.
 	 TCNT2 = 0; // initial value;
 	 TIMSK2 = (1<<OCIE2A);
-	 TCCR2B = (1<<CS21); // N = 8. Effective timer frequency is f = (f_clock)/ (2 * N * (1+ OCR2A).
+	 TCCR2B = (1<<CS22)|(1<<CS21)|(1<<CS20); // N = 1024. Effective timer frequency is f = (f_clock)/ (2 * N * (1+ OCR2A).
 	 
-	 // Effective compare frequency is f = f = (f_clock)/ (2 * N * (1+ OCR2A).
+	 // Effective compare frequency is f = f = (f_clock)/ (2 * N * (1+ OCR2A) = 26Hz.
 	 // from uint8_t variable timer2, effective frequency is .
 	return;
 }
@@ -133,13 +149,12 @@ void PWM_SETUP(void)
    TCCR0A = (1<<WGM00);		//Phase correct PWM mode.
    TCCR0A |= (1<<COM0B1)|(1<<COM0A1);		// Clears on count up, sets on count down. Symmetric about peak value 0xFF.
 
-   TCCR0B = (1<<CS01);			//prescaler 8
+   TCCR0B = (1<<CS01)|(1<<CS00);			//prescaler 8
+  // TIMSK0 = (1<<OCIE0A)|(1<<OCIE0B); // enable compare interrupt 
 
    //Interrupt mask enables
-   PWM_LEFT = 254;				//(sets the pin to logic 1)
-   PWM_RIGHT = 254;
-
-   TIMSK0 = (1<<OCIE0B)|(1<<OCIE0A);		//interrupt is enabled for OCR0A and OCR0B
+   PWM_LEFT = 0;				//(sets the pin to logic 1 AKA sets motors to STOP)
+   PWM_RIGHT = 0;
    return;
 }
 
@@ -158,8 +173,4 @@ ISR(TIMER2_COMPA_vect)
 	}
 */
 	TCNT2 = 0;
-}
-
-ISR(TIMER0_COMPB_vect){
-	OCR0B = PWM_RIGHT;
 }
