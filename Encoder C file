@@ -73,7 +73,6 @@ ISR(INT0_vect)  // PD2, left wheel.
 ISR(INT1_vect)  // PD3, Right wheel.
 {
 	righttick++;
-	
 	//printf_P(PSTR("The right count is %d\n"),righttick); // For testing with PuTTy.
 	EIFR |= (1<<INTF1); // Clears this interrupt.
 }
