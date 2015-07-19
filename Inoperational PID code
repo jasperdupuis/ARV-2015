@@ -13,13 +13,13 @@ Must include the command init_uart(); in the main program to enable PuTTy testin
 
 #include "encoderlib.h"
 
-#define PWM_LEFT OCR0A
-#define PWM_RIGHT OCR0B
+#define PWM_RIGHT OCR0A
+#define PWM_LEFT OCR0B
 #define timer2_upcount 26 // Varies the encoder sampling frequency. 
 /*
 Sample frequency is f= { [ (f_clock)/(2*1024*(1+255) ] / timer2_upcount} =~ 26/timer2_upcount = =~ 1Hz
 	*/
-#define speed 1
+#define speed 4
 /*
 The number of ticks we look for per feedback loop. For timer2_upcount = 26:
 1 tick = ~1cm/s.
@@ -28,9 +28,10 @@ The number of ticks we look for per feedback loop. For timer2_upcount = 26:
 16 ticks = ~13cm/s
 */
 
-#define integration_scale_factor 5
-#define derivative_scale_factor 5
+#define integration_scale_factor 3
+#define derivative_scale_factor 3
 #define  proportional_scale_factor 3
+#define  difference_scale_factor 3
 /* This changes the value of >>x for the shift operation for both Integration and derivatives in PID.
 0 = no division.
 1 = div by 2
@@ -55,25 +56,15 @@ int main(void)
    encoder_setup();
    
    init_uart();
-  
-   volatile int8_t left_error = 0;
-   volatile int8_t right_error = 0;
-   
-   volatile int8_t left_error_old = 0;
-   volatile int8_t right_error_old = 0;
-   
-   volatile int8_t left_derivative = 0;
-   volatile int8_t right_derivative = 0;
-   
-   volatile int16_t left_error_sum  = 0;
-   volatile int16_t right_error_sum = 0;
-   
-   volatile int8_t right_error_integral = 0;
-   volatile int8_t left_error_integral = 0;
    
    volatile int8_t PID_left_out = 0;
    volatile int8_t PID_right_out = 0;
    
+   volatile int8_t left_error = 0;
+   volatile int8_t right_error = 0;
+   
+   int8_t error_difference = 0;
+
    uint8_t i = 1;
    
    PORTB |= ((1<<PB2)|(1<<PB0)); // IN1 0V and PWM on IN2 => Motors Stop.
@@ -84,75 +75,74 @@ int main(void)
    
    sei();					//allow interrupts to start
    
-   PWM_RIGHT = 35;
-   PWM_LEFT = 35;
+   PWM_RIGHT = 30;
+   PWM_LEFT = 30;
    
-   while (i<24)
+   while (i<48)
    {
-	   
+	 
 			if(timer2 >= timer2_upcount)
 			{
 		
-	
-				// right proportional
-				right_error_old = right_error;
-				right_error = speed - right_encoder_count();
-				right_error = (right_error >> proportional_scale_factor);
-		
-				// right integral
-				right_error_sum += right_error;
-				right_error_integral = (right_error_sum>>integration_scale_factor); // integral term for right
-			
-		/*
-				// right derivative
-				right_derivative = right_error - right_error_old;
-				right_derivative = (right_derivative>>derivative_scale_factor);
-		*/
-				
-				PID_right_out = right_error + right_error_integral + right_derivative;
-				
-				// left proportional
-				left_error_old = left_error;
+		//LEFT PID	
 				left_error = speed - left_encoder_count();
-				right_error = (left_error >> proportional_scale_factor);
+		
+				PID_left_out = left_error;
 				
-				// left integral
-				left_error_sum += left_error;
-				left_error_integral = (left_error_sum>>integration_scale_factor); //integral term for left.
+				PWM_LEFT = PWM_LEFT + PID_left_out;
 		
-		/*	
-				// left derivative
-				left_derivative = left_error - left_error_old;
-				left_derivative = (left_derivative>>derivative_scale_factor);
-		*/		
-				PID_left_out = left_error + left_error_integral + left_derivative;
+		//RIGHT PID
+				right_error = speed - right_encoder_count();
 		
-				PWM_LEFT += PID_left_out;
-				PWM_RIGHT += PID_right_out;
+				PID_right_out = right_error;
 			
+				PWM_RIGHT += PID_right_out;
+				
+		// DIFFERENTIAL RESPONSE
+		
+				error_difference = right_error-left_error;
+				
+		/*  If right error is bigger than left, this will be true.
+			==> Overall picture is that right is slower than left.
+			==> Add a difference PWM to make this up.
+		*/
+		
+		printf_P(PSTR(" Error difference: %d				\n"), error_difference); // For testing with PuTTy.
+				if (error_difference<0)
+				{
+					while(error_difference<0)
+					{
+						PWM_LEFT++;
+						error_difference++; 
+					}
+				}
+		printf_P(PSTR(" Error difference: %d				\n"), error_difference); // For testing with PuTTy.		
+				if(error_difference>0)
+					{
+						while(error_difference>0)
+						PWM_RIGHT++;
+						error_difference--;
+					}
+							
 				printf_P(PSTR("  - - - - - I N T E R V A L # %d  - - - - - - - \n"), i); // For testing with PuTTy.
+				
 				printf_P(PSTR(" Left error: %d					"),left_error); // For testing with PuTTy.
 				printf_P(PSTR(" Right error: %d					\n"), right_error); // For testing with PuTTy.
-				
-				printf_P(PSTR(" Sum of left error: %d				"),left_error_sum); // For testing with PuTTy.
-				printf_P(PSTR(" Sum of right error: %d				\n"), right_error_sum); // For testing with PuTTy.
-				
-				printf_P(PSTR(" Left scaled error: %d				"), left_error_integral); // For testing with PuTTy.
-				printf_P(PSTR(" Right scaled error: %d				\n"),right_error_integral); // For testing with
 				
 				printf_P(PSTR(" PID left output: %d				"), PID_left_out); // For testing with PuTTy.
 				printf_P(PSTR(" PID right output: %d				\n"), PID_right_out); // For testing with PuTTy.
 				
 				printf_P(PSTR(" Left PWM: %d  ticks: %d				"),PWM_LEFT,lefttick); // For testing with PuTTy.
 				printf_P(PSTR(" Right PWM: %d  ticks: %d			 \n \n \n"),PWM_RIGHT,righttick); // For testing with PuTTy.
-
+				
+		
 				timer2 = 0;
-				lefttick = 0;
-				righttick = 0;
+				reset_encoders();
 				i++;
 			}
 
 		}
+		
 	}
 
 /* This function sets 8-bit Timer 2 to CTC mode with a prescale of 1024. This makes the frequency of 
