@@ -1,0 +1,35 @@
+/*
+ * MCS_Encoder_1.c
+ *
+ * Created: 10/07/2015 3:02:41 PM
+ *  Author: Nick Campbell, Jasper Dupuis
+ */ 
+
+#include "declarations.h"
+
+int main(void)
+{
+	
+   cli();
+   PWM_SETUP();
+   TIMER2_SETUP();
+   encoder_setup();
+   
+   init_uart();
+   
+   PORTB |= ((1<<PB2)|(1<<PB0)); // IN1 0V and PWM on IN2 => Motors Stop.
+   
+   printf_P(PSTR("\nHELLO! ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ Initalizing...\n")); // For testing with PuTTy
+   printf_P(PSTR("~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~\n"));
+   printf_P(PSTR("~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~\n"));
+   
+   sei();					//allow interrupts to start
+   
+   direction_control(FORWARD,34,1);
+   direction_control(RIGHT,0,0);
+   direction_control(FORWARD,186,1);
+   direction_control(RIGHT,0,0);
+   direction_control(FORWARD,244,1);
+     
+}
+
