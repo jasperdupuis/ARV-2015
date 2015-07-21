@@ -1,0 +1,39 @@
+#ifndef MCS_H_
+#define MCS_H_
+
+#include "libraries.h"
+#include "declarations.h"
+
+#define PWM_RIGHT OCR0A
+#define PWM_LEFT OCR0B
+#define timer2_upcount 26 // Varies the encoder sampling frequency.
+
+volatile uint8_t timer2;
+/*
+Sample frequency is f= { [ (f_clock)/(2*1024*(1+255) ] / timer2_upcount} =~ 26/timer2_upcount = =~ 1Hz
+
+The number of ticks we look for per feedback loop. For timer2_upcount = 26:
+1 tick = ~1cm/s.
+4 ticks = ~3 cm/s
+8 ticks = ~6.5cm/s
+16 ticks = ~13cm/s
+*/
+
+//#define speed 3 // not currently used for motion speed input.
+
+#define kp(x)	(5*x)>>2	//(5/4)
+
+volatile uint16_t leftdistance;
+volatile uint16_t rightdistance;
+
+enum DIRECTION {FORWARD,LEFT,RIGHT};
+
+void PWM_SETUP(void);
+void TIMER2_SETUP(void);
+
+void mcs(uint16_t, uint8_t);
+void direction_control(enum DIRECTION, uint16_t , uint8_t);
+void brake(void);
+
+
+#endif /* MCS_H_ */
