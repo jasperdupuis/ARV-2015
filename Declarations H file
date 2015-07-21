@@ -1,0 +1,8 @@
+#ifndef DECLARATIONS_H_
+#define DECLARATIONS_H_
+
+#include "encoder.h"
+#include "MCS.h"
+
+
+#endif /* DECLARATIONS_H_ */
