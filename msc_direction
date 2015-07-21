@@ -1,0 +1,228 @@
+/*
+ * MCS_Encoder_1.c
+ *
+ * Created: 10/07/2015 3:02:41 PM
+ *  Author: Nick Campbell, Jasper Dupuis
+ */ 
+
+/* 
+
+Must include the command init_uart(); in the main program to enable PuTTy testing.
+
+*/
+
+#include "encoder.h"
+
+#define PWM_RIGHT OCR0A
+#define PWM_LEFT OCR0B
+#define timer2_upcount 26 // Varies the encoder sampling frequency. 
+/*
+Sample frequency is f= { [ (f_clock)/(2*1024*(1+255) ] / timer2_upcount} =~ 26/timer2_upcount = =~ 1Hz
+	*/
+//#define speed 3
+/*
+The number of ticks we look for per feedback loop. For timer2_upcount = 26:
+1 tick = ~1cm/s.
+4 ticks = ~3 cm/s
+8 ticks = ~6.5cm/s
+16 ticks = ~13cm/s
+*/
+
+#define integration_scale_factor 3
+#define derivative_scale_factor 3
+#define  proportional_scale_factor 3
+#define  difference_scale_factor 3
+
+#define kp(x)	(5*x)>>2	//(5/4)
+#define ki(x)	(7*x)>>3	//(7/8)
+/* This changes the value of >>x for the shift operation for both Integration and derivatives in PID.
+0 = no division.
+1 = div by 2
+2 = div by 4
+3 = div by 8
+4 = div by 16
+5 = div by 32
+*/
+
+
+volatile uint8_t timer2;
+
+volatile uint16_t leftdistance;
+volatile uint16_t rightdistance;
+
+enum DIRECTION {FORWARD,LEFT,RIGHT};
+
+
+void PWM_SETUP(void);
+void TIMER2_SETUP(void);
+
+void brake(){
+	
+	PWM_RIGHT = 0;
+	PWM_LEFT = 0;
+	PORTB &= ~((1<<PB0)|(1<<PB2));
+}
+
+void mcs(uint16_t distance, uint8_t speed)
+{
+	/*motor control function where the speed and distance is passed
+	by the caller and direction is determined by the caller*/
+	int8_t PID_left_out = 0;
+	int8_t PID_right_out = 0;
+	   
+	int8_t left_error = 0;
+	int8_t right_error = 0;
+	
+	leftdistance = 0;
+	rightdistance = 0;
+
+	uint8_t i = 1;
+	
+	/*loop until the distance is reached*/
+	while(distance >rightdistance){
+		
+		if(timer2 >= timer2_upcount)
+		{
+		
+		//LEFT PID	
+			left_error = speed - left_encoder_count();
+		
+			PID_left_out = kp(left_error);
+				
+			PWM_LEFT += PID_left_out;
+		
+		//RIGHT PID
+			right_error = speed - right_encoder_count();
+		
+			PID_right_out = kp(right_error);
+			
+			PWM_RIGHT += PID_right_out;
+
+				timer2 = 0;
+				reset_encoders();
+				i++;
+		}
+	}
+	/*brake the wheels*/
+	brake();	
+}
+
+void direction_control(enum DIRECTION dir, uint16_t distance, uint8_t speed){
+	switch(dir){
+		case FORWARD:
+			PORTB |= ((1<<PB2)|(1<<PB0));
+			PWM_RIGHT = 50;
+			PWM_LEFT = 50;
+			mcs(distance,speed);
+			break;
+		case RIGHT:
+			/*make the right wheel go in reverse at speed 2 and distance 13
+			should move 90 deg*/
+			PORTB &= ~(1<<PINB0);
+			PORTB |= (1<<PINB2);
+			PWM_RIGHT = 60;
+			PWM_LEFT = 60;
+			mcs(13,2);
+			break;
+		case LEFT:
+			/*make the left wheel go in reverse at speed 2 and distance 13
+			should move 90 deg*/
+			PORTB &= ~(1<<PINB2);
+			PORTB |= (1<<PINB0);
+			PWM_RIGHT = 60;
+			PWM_LEFT = 60;
+			mcs(13,2);
+			break;
+		};
+	
+};
+
+
+int main(void)
+{
+   cli();
+   PWM_SETUP();
+   TIMER2_SETUP();
+   encoder_setup();
+   
+   init_uart();
+   
+   
+   PORTB |= ((1<<PB2)|(1<<PB0)); // IN1 0V and PWM on IN2 => Motors Stop.
+   
+   printf_P(PSTR("\nHELLO! ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ Initalizing...\n")); // For testing with PuTTy
+   printf_P(PSTR("~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~\n"));
+   printf_P(PSTR("~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~\n"));
+   
+   sei();					//allow interrupts to start
+   //forward(200);
+   direction_control(RIGHT,0,0);
+   direction_control(RIGHT,0,0);
+   direction_control(RIGHT,0,0);
+   direction_control(RIGHT,0,0);
+   //forward(200);
+   
+		
+	}
+
+/* This function sets 8-bit Timer 2 to CTC mode with a prescale of 1024. This makes the frequency of 
+interrupt entirely dependent on the value of OCR2A and the predefined timer2 value. The timer interrupt mask
+for output compare A is set and called by ISR(TIMER2_COMPA_vect). 
+
+With OCR2A = 255 and timer2_upcount = 2, the effective frequency of interrupt is 13Hz.
+
+*/
+
+void TIMER2_SETUP(void)
+{
+	 timer2=0;
+	 TCCR2A = (1<<COM2A1) | (1<<COM2A0) | (1<<WGM21) ; //COM2 bits: Set OC2A on compare match. WGM2:0 = 2 enables CTC mode.
+	 OCR2A = 0xFF; // Triggers when TCNT2 = 255.
+	 TCNT2 = 0; // Initial value;
+	 TIMSK2 = (1<<OCIE2A);
+	 TCCR2B = (1<<CS22)|(1<<CS21)|(1<<CS20); // N = 1024. Effective timer frequency is f = (f_clock)/ (2 * N * (1+ OCR2A).
+	 
+	 // Effective compare frequency is f = (f_clock)/ (2 * N * (1+ OCR2A) = 26Hz.
+	 
+	return;
+}
+
+/* 
+This function enables phase correct PWM output. This was suggested by the AVR 
+datasheet as the preferred method of PWM for motor control. The duty cycles are 
+
+N = 8, by the prescale value below.
+The effective PWM frequency is given by f = (f_clock) / (510 * N) =~ 3431 Hz.
+
+To increase forward motor speed (and/or torque), decrease PWM_LEFT or PWM_RIGHT.
+To decrease forward motor speed, increase PWM_LEFT or PWM_RIGHT.
+
+LEFT_PWM is PB3, the Blue lead on the left of the solder board.
+PWM_RIGHT is PB4, the blue lead on the right of the solder board.
+
+Due to a hardware install error, PWM right runs on inverted logic.
+
+*/
+
+void PWM_SETUP(void)
+{
+	
+   DDRB|=(1<<PB0)|(1<<PB2)|(1<<PB3)|(1<<PB4);
+   PORTB &= ~((1<<PB0)|(1<<PB2));
+   //Timer configuration off of which output compare 1 runs.
+   TCCR0A = (1<<WGM00);		//Phase correct PWM mode.
+   TCCR0A |= (1<<COM0B1)|(1<<COM0A1);		// Clears on count up, sets on count down. Symmetric about peak value 0xFF.
+
+   TCCR0B = (1<<CS01)|(1<<CS00);			//prescaler 8
+  // TIMSK0 = (1<<OCIE0A)|(1<<OCIE0B); // enable compare interrupt 
+   //Interrupt mask enables
+   PWM_LEFT = 0;				//(sets the pin to logic 1 AKA sets motors to STOP)
+   PWM_RIGHT = 0;
+   return;
+}
+
+ISR(TIMER2_COMPA_vect)
+{
+	timer2++;
+	TCNT2 = 0;
+}
