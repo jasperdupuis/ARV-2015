@@ -60,6 +60,9 @@ extern void reset_encoders(void);
 
 extern void encoder_setup(void);
 
+extern volatile uint16_t leftdistance;
+extern volatile uint16_t rightdistance;
+
 /*uart entry functions*/
 extern void init_uart(void);
 
