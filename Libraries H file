@@ -1,0 +1,12 @@
+#ifndef LIBRARIES_H_
+#define LIBRARIES_H_
+
+#include <avr/interrupt.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <avr/io.h>
+
+#include <avr/pgmspace.h>
+#include <eeprom.h>
+
+#endif /* LIBRARIES_H_ */
