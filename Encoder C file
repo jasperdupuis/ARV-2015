@@ -29,7 +29,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-#include "encoderlib.h"
+#include "encoder.h"
 volatile uint8_t lefttick;
 volatile uint8_t righttick;
 
