@@ -43,11 +43,8 @@ encoder_setup(); must be called by your main function.
 #ifndef ENCODER_LIB_H
 #define ENCODER_LIB_H
 
-#include <avr/interrupt.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <avr/io.h>
-#include <avr/pgmspace.h>
+#include "libraries.h"
+#include "declarations.h"
 
 extern volatile uint8_t lefttick;
 extern volatile uint8_t righttick;
