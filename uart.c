@@ -1,5 +1,5 @@
 
-#include "encoderlib.h"
+#include "encoder.h"
 
 static int uart_putchar(char c, FILE *stream);
 static int uart_getchar(FILE *stream);
