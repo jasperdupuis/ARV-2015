@@ -66,6 +66,7 @@ void encoder_setup(void)
 ISR(INT0_vect)  // PD2, left wheel.
 {
 	lefttick++;
+	leftdistance++;
 	//printf_P(PSTR("The left count is %d\n"),lefttick); // For testing with PuTTy.
 	EIFR |= (1<<INTF0); // Clears this interrupt.
 }
@@ -73,6 +74,7 @@ ISR(INT0_vect)  // PD2, left wheel.
 ISR(INT1_vect)  // PD3, Right wheel.
 {
 	righttick++;
+	rightdistance++;
 	//printf_P(PSTR("The right count is %d\n"),righttick); // For testing with PuTTy.
 	EIFR |= (1<<INTF1); // Clears this interrupt.
 }
