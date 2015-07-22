@@ -25,11 +25,12 @@ int main(void)
    
    sei();					//allow interrupts to start
    
-   direction_control(FORWARD,34,1);
-   direction_control(RIGHT,0,0);
-   direction_control(FORWARD,186,1);
-   direction_control(RIGHT,0,0);
-   direction_control(FORWARD,244,1);
+   //direction_control(FORWARD,254,3,3);
+   direction_control(FORWARD,34,5,5);
+   direction_control(RIGHT,0,0,0);
+   direction_control(FORWARD,186,5,5);
+   direction_control(RIGHT,0,0,0);
+   direction_control(FORWARD,244,5,5);
      
 }
 
