@@ -14,6 +14,7 @@ int main(void)
    PWM_SETUP();
    TIMER2_SETUP();
    encoder_setup();
+   DDRD|=1; // FOR TESTING DISPLAY OF LED.
    
    init_uart();
    
@@ -24,13 +25,14 @@ int main(void)
    printf_P(PSTR("~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~\n"));
    
    sei();					//allow interrupts to start
-   
-   //direction_control(FORWARD,254,3,3);
+   //direction_control(FORWARD,222,5,5);
+
    direction_control(FORWARD,34,5,5);
    direction_control(RIGHT,0,0,0);
    direction_control(FORWARD,186,5,5);
    direction_control(RIGHT,0,0,0);
    direction_control(FORWARD,244,5,5);
+
      
 }
 
