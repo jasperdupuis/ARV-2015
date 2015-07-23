@@ -1,39 +1,52 @@
 #ifndef MCS_H_
 #define MCS_H_
 
-#include "libraries.h"
 #include "declarations.h"
 
 #define PWM_RIGHT OCR0A
 #define PWM_LEFT OCR0B
-#define timer2_upcount 26 // Varies the encoder sampling frequency.
+#define timer2_upcount 13 // Varies the encoder timing frequency.
 
 volatile uint8_t timer2;
-/*
-Sample frequency is f= { [ (f_clock)/(2*1024*(1+255) ] / timer2_upcount} =~ 26/timer2_upcount = =~ 1Hz
 
-The number of ticks we look for per feedback loop. For timer2_upcount = 26:
+/*
+Sample frequency is f= { [ (f_clock)/(2*1024*(1+255) ] / timer2_upcount} =~ 26/timer2_upcount 
+	at 26, f = 1 Hz
+	at 8, f = 3.33 Hz
+	at 4, f = 6.66 Hz
+	at 2, f = 13 Hz 
+
+For speed variables passed as arguments, the below values have been calculated for timer2_upcount=26.
+
 1 tick = ~1cm/s.
-4 ticks = ~3 cm/s
+4 ticks = ~3 cm/ss
 8 ticks = ~6.5cm/s
 16 ticks = ~13cm/s
+
 */
 
 //#define speed 3 // not currently used for motion speed input.
 
-#define kp(x)	(5*x)>>2	//(5/4)
+// Prop/Int/Diff term toenable higher resolution manipulation of variables
 
-volatile uint16_t leftdistance;
-volatile uint16_t rightdistance;
+#define scaler 10
 
-enum DIRECTION {FORWARD,LEFT,RIGHT};
+//PID controller variables scaling for heading control.
+
+#define kp(x)	(1*x)>>0	//(1/1)
+#define ki(x)	(1*x)>>11	//(1/2)
+#define kd(x)	(3*x)>>0	//(3/1)
+
+// Speed control scaling
+#define ks(x)	(1*x)>>0	//(1/1)
+
+enum DIRECTION {FORWARD,REVERSE,LEFT,RIGHT};
 
 void PWM_SETUP(void);
 void TIMER2_SETUP(void);
 
-void mcs(uint16_t, uint8_t);
-void direction_control(enum DIRECTION, uint16_t , uint8_t);
+void mcs(uint8_t, uint8_t, uint8_t);
+void direction_control(enum DIRECTION, uint8_t , uint8_t, uint8_t);
 void brake(void);
-
 
 #endif /* MCS_H_ */
