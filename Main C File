@@ -1,35 +1,52 @@
-/*
- * MCS_Encoder_1.c
- *
- * Created: 10/07/2015 3:02:41 PM
- *  Author: Nick Campbell, Jasper Dupuis
- */ 
+#ifndef MCS_H_
+#define MCS_H_
 
 #include "declarations.h"
 
-int main(void)
-{
-	
-   cli();
-   PWM_SETUP();
-   TIMER2_SETUP();
-   encoder_setup();
-   
-   init_uart();
-   
-   PORTB |= ((1<<PB2)|(1<<PB0)); // IN1 0V and PWM on IN2 => Motors Stop.
-   
-   printf_P(PSTR("\nHELLO! ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ Initalizing...\n")); // For testing with PuTTy
-   printf_P(PSTR("~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~\n"));
-   printf_P(PSTR("~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~\n"));
-   
-   sei();					//allow interrupts to start
-   
-   direction_control(FORWARD,34,1);
-   direction_control(RIGHT,0,0);
-   direction_control(FORWARD,186,1);
-   direction_control(RIGHT,0,0);
-   direction_control(FORWARD,244,1);
-     
-}
+#define PWM_RIGHT OCR0A
+#define PWM_LEFT OCR0B
+#define timer2_upcount 18 // Varies the encoder timing frequency.
 
+volatile uint8_t timer2;
+
+/*
+Sample frequency is f= { [ (f_clock)/(2*1024*(1+255) ] / timer2_upcount} =~ 26/timer2_upcount 
+	at 26, f = 1 Hz
+	at 8, f = 3.33 Hz
+	at 4, f = 6.66 Hz
+	at 2, f = 13 Hz 
+
+For speed variables passed as arguments, the below values have been calculated for timer2_upcount=26.
+
+1 tick = ~1cm/s.
+4 ticks = ~3 cm/ss
+8 ticks = ~6.5cm/s
+16 ticks = ~13cm/s
+
+*/
+
+//#define speed 3 // not currently used for motion speed input.
+
+//PID controller variables scaling for heading control.
+
+#define kp(x)	(1*x)>>0	//(5/1)
+#define ki(x)	(1*x)>>0	//(1/64)
+#define kd(x)	(1*x)>>0	//(1/1)
+
+// Speed control scaling
+#define ks(x)	(1*x)>>0	//(1/1)
+
+volatile uint8_t leftdistance;
+volatile uint8_t rightdistance;
+
+enum DIRECTION {FORWARD,REVERSE,LEFT,RIGHT};
+
+void PWM_SETUP(void);
+void TIMER2_SETUP(void);
+
+void mcs(uint8_t, uint8_t, uint8_t);
+void direction_control(enum DIRECTION, uint8_t , uint8_t, uint8_t);
+void brake(void);
+
+
+#endif /* MCS_H_ */
