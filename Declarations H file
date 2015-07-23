@@ -1,8 +1,17 @@
+/*
+ * declarations.h
+ *
+ * Created: 21/07/2015 5:44:06 PM
+ *  Author: Student
+ */ 
+
+
 #ifndef DECLARATIONS_H_
 #define DECLARATIONS_H_
 
+#include "libraries.h"
+
 #include "encoder.h"
 #include "MCS.h"
-
 
 #endif /* DECLARATIONS_H_ */
