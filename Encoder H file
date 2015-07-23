@@ -43,11 +43,11 @@ encoder_setup(); must be called by your main function.
 #ifndef ENCODER_LIB_H
 #define ENCODER_LIB_H
 
-#include "libraries.h"
 #include "declarations.h"
 
-extern volatile uint8_t lefttick;
-extern volatile uint8_t righttick;
+uint8_t right_distance(void);
+uint8_t left_distance(void);
+void reset_distances(void);
 
 extern uint8_t left_encoder_count(void);
 
@@ -57,8 +57,8 @@ extern void reset_encoders(void);
 
 extern void encoder_setup(void);
 
-extern volatile uint16_t leftdistance;
-extern volatile uint16_t rightdistance;
+extern volatile uint8_t leftdistance;
+extern volatile uint8_t rightdistance;
 
 /*uart entry functions*/
 extern void init_uart(void);
