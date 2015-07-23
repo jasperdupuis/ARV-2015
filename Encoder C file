@@ -52,6 +52,24 @@ void reset_encoders(void) // This is the requirement for the Open Source project
 	return;
 }
 
+uint8_t right_distance(void)
+{
+	return(rightdistance);
+}
+
+uint8_t left_distance(void)
+{
+	return(leftdistance);
+}
+
+void reset_distances(void)
+{
+	rightdistance=0;
+	leftdistance=0;
+}
+
+
+
 void encoder_setup(void)
 {
 	reset_encoders();
@@ -75,7 +93,7 @@ ISR(INT1_vect)  // PD3, Right wheel.
 {
 	righttick++;
 	rightdistance++;
-	//printf_P(PSTR("The right count is %d\n"),righttick); // For testing with PuTTy.
+	//printf_P(PSTR("The right count is %d\n"),rightdistance); // For testing with PuTTy.
 	EIFR |= (1<<INTF1); // Clears this interrupt.
 }
 
