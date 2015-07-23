@@ -1,4 +1,4 @@
-#include "MCS.h"
+#include "declarations.h"
 
 void mcs(uint8_t distance, uint8_t left_speed, uint8_t right_speed)
 {
@@ -8,75 +8,58 @@ void mcs(uint8_t distance, uint8_t left_speed, uint8_t right_speed)
 	int8_t PID_left_out = 0;
 	int8_t PID_right_out = 0;
 	
-	rightdistance = 0;
-	leftdistance = 0;
+	int16_t differential = 0;    // dx/dt
+	int16_t proportional_old = 0;
+	int16_t proportional = 0; // x(t)
+	int16_t integral = 0; // S(xdt)
 	
-	int8_t differential = 0;    // dx/dt
-	int8_t proportional = 0; // x(t)
-	int8_t integral = 0; // S(xdt)
+	uint8_t rightd = 0;
+	uint8_t leftd = 0;
 	
 	reset_distances();
 	
 	int8_t left_error = 0;
-	int8_t right_error = 0;
-	
-	int8_t righttick;
-	int8_t lefttick;
 	
 	/*loop until the distance is reached*/
-	while((distance > rightdistance)&&(distance > leftdistance))
+	while ((distance > right_distance())&&(distance > left_distance()))
 	{
 		if(timer2 >= timer2_upcount)
 		{
+		
+		leftd=left_distance();
+		rightd = right_distance();	
 			
 		PORTD ^=1;
-		
-		lefttick = left_encoder_count();
-		righttick = right_encoder_count();
-		reset_encoders();
-		
-		// HEADING CONTROL
 
-			differential = lefttick - righttick; // this is the dx/dt term for the pid controller.
-			// +1 ==> we have gone off course to the left by ~6.7 degrees.
-				// speed up left, slow down right.
-			// -1 ==> we have gone off course to the right by ~6.7 degrees
-				// slow down left, speed up right
-		
-			proportional += ki(differential); // x(t)
-			integral += proportional ; // s(xdt)
-		
+		// HEADING CONTROL VARIABLES
+			
+			proportional_old = proportional;
+			proportional = leftd - rightd; // x(t)
+			proportional = proportional;
+			
+	//		if ( (proportional > 3) | (proportional < -3) ) integral = 0;
+			
+			integral += proportional; // S(xdt)		
+			integral = integral;
+	
+			differential = proportional - proportional_old;
+			differential = differential;
+			
 		// LEFT SPEED CONTROL
 		
-			left_error = left_speed - lefttick; //
-			
-			PID_left_out = (kd(left_error)) - (kd(differential)) - ((proportional));
-	//		PID_left_out = (ks(left_error)) + (kp(proportional)) + (ki(integral));
-	//		PID_left_out = (ks(left_error)) + (kp(proportional)) + (kd(differential));
-	//		PID_left_out = (ks(left_error)) + (kp(proportional)) + (ki(integral)) + (kd(differential));
-	//		PID_left_out = (ks(left_error)) + (kp(proportional)) + (ki(integral));
+			left_error = left_speed - left_encoder_count(); //
+			PID_left_out = left_error;
 			
 			PWM_LEFT += PID_left_out;
 		
-		// RIGHT SPEED CONTROL
-	
-			right_error = right_speed - righttick;
-			
-			PID_right_out = (ks(right_error)) + (kd(differential)) + ((proportional));
-	//		PID_right_out = (ks(right_error)) - (kp(proportional)) - (ki(integral));
-	//		PID_right_out = (ks(right_error)) - (kp(proportional)) - (kd(differential));
-	//		PID_right_out = (ks(right_error)) - (kp(proportional)) - (ki(integral)) - (kd(differential));
-	//		PID_left_out = (ks(right_error)) - (kp(proportional)) - (ki(integral));
-			
+		// RIGHT SPEED + HEADING CONTROL
+
+			PID_right_out = (kp(proportional)) + (ki(integral)) + (kd(differential));
+
 			PWM_RIGHT += PID_right_out;	
-						
-			printf_P(PSTR(" difference: %d					difference_sum: %d \n"),differential,proportional); // For testing with PuTTy.
-			printf_P(PSTR(" Left PWM: %d  ticks: %d				"),PWM_LEFT,lefttick); // For testing with PuTTy.
-			printf_P(PSTR(" Right PWM: %d  ticks: %d			 \n"),PWM_RIGHT,righttick);
-			printf_P(PSTR(" PWM LMOD: %d						"),PID_left_out); // For testing with PuTTy.
-			printf_P(PSTR(" PWM RMOD: %d					 \n \n \n"),PID_right_out);
-						
+			
 			timer2 = 0;
+			reset_encoders();			
 		}/*
 		if((proportional > 10)||(proportional < 10)){
 			proportional =0;
@@ -84,6 +67,7 @@ void mcs(uint8_t distance, uint8_t left_speed, uint8_t right_speed)
 	}
 	/*brake the wheels*/
 	brake();
+	reset_distances();
 }
 
 /*
@@ -94,8 +78,8 @@ void direction_control(enum DIRECTION dir, uint8_t distance, uint8_t left_speed,
 	switch(dir){
 		case FORWARD:
 			PORTB |= ((1<<PB2)|(1<<PB0));
-			PWM_RIGHT = 50;
-			PWM_LEFT = 50;
+			PWM_RIGHT = 75;
+			PWM_LEFT = 75;
 			mcs(distance,left_speed,right_speed);
 			break;
 		case REVERSE:
@@ -107,7 +91,7 @@ void direction_control(enum DIRECTION dir, uint8_t distance, uint8_t left_speed,
 			PORTB |= (1<<PINB2);
 			PWM_RIGHT = 50;
 			PWM_LEFT = 50;
-			mcs(13,3,3);
+			mcs(13,4,4);
 			break;
 		case LEFT:
 			/*make the left wheel go in reverse at speed 2 and distance 13
@@ -116,7 +100,7 @@ void direction_control(enum DIRECTION dir, uint8_t distance, uint8_t left_speed,
 			PORTB |= (1<<PINB0);
 			PWM_RIGHT = 50;
 			PWM_LEFT = 50;
-			mcs(13,3,3);
+			mcs(13,4,4);
 			break;
 		};
 	
