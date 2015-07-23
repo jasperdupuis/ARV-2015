@@ -1,6 +1,6 @@
 #include "MCS.h"
 
-void mcs(uint16_t distance, uint8_t left_speed, uint8_t right_speed)
+void mcs(uint8_t distance, uint8_t left_speed, uint8_t right_speed)
 {
 	/*motor control function where the speed and distance is passed
 	by the caller and direction is determined by the caller*/
@@ -8,69 +8,93 @@ void mcs(uint16_t distance, uint8_t left_speed, uint8_t right_speed)
 	int8_t PID_left_out = 0;
 	int8_t PID_right_out = 0;
 	
-	int8_t difference = 0;  
-	int8_t difference_sum = -1; 
-	   
+	rightdistance = 0;
+	leftdistance = 0;
+	
+	int8_t differential = 0;    // dx/dt
+	int8_t proportional = 0; // x(t)
+	int8_t integral = 0; // S(xdt)
+	
+	reset_distances();
+	
 	int8_t left_error = 0;
 	int8_t right_error = 0;
 	
-	leftdistance = 0;
-	rightdistance = 0;
+	int8_t righttick;
+	int8_t lefttick;
+	
+	int8_t old_err = 0;
 	
 	/*loop until the distance is reached*/
-	while(distance > rightdistance){
-		
+	while((distance > rightdistance)&&(distance > leftdistance))
+	{
 		if(timer2 >= timer2_upcount)
 		{
+			
+		PORTD ^=1;
+		
+		lefttick = left_encoder_count();
+		righttick = right_encoder_count();
+		reset_encoders();
 		
 		// HEADING CONTROL
-		
-			difference = right_encoder_count() - left_encoder_count();
+
+			proportional = lefttick - righttick; // this is the dx/dt term for the pid controller.
 			// +1 ==> we have gone off course to the left by ~6.7 degrees.
 				// speed up left, slow down right.
 			// -1 ==> we have gone off course to the right by ~6.7 degrees
 				// slow down left, speed up right
 		
-			difference_sum += difference; // Accumulate the error so we return to the zero line.		
-			// if positive, we must speed up left wheel, slow down right.
-			// if negative, we must slow down left wheel, speed up right.
-		
+			integral += ki(proportional); // x(t)		
 		// LEFT SPEED CONTROL
 		
-			left_error = left_speed - left_encoder_count(); //
+			left_error = left_speed - lefttick; //
 			
-	//		PID_left_out = (ks(left_error)) + (kp(difference));
-			PID_left_out = (ks(left_error)) + (kp(difference)) + (ki(difference_sum));
+			differential = proportional - old_err;
+			
+			PID_left_out = (ks(left_error)) - (kp(proportional)) - ((integral)) ;
+	//		PID_left_out = (ks(left_error)) + (kp(proportional)) + (ki(integral));
+	//		PID_left_out = (ks(left_error)) + (kp(proportional)) + (kd(differential));
+	//		PID_left_out = (ks(left_error)) + (kp(proportional)) + (ki(integral)) + (kd(differential));
+	//		PID_left_out = (ks(left_error)) + (kp(proportional)) + (ki(integral));
 			
 			PWM_LEFT += PID_left_out;
 		
 		// RIGHT SPEED CONTROL
-			right_error = right_speed - right_encoder_count();
+	
+			right_error = right_speed - righttick;
 			
-	//		PID_right_out = (ks(right_error)) - (kp(difference));
-			PID_right_out = (ks(right_error)) - (kp(difference)) - (ki(difference_sum));
+			PID_right_out = (ks(right_error)) + (kp(proportional)) + ((integral));
+	//		PID_right_out = (ks(right_error)) - (kp(proportional)) - (ki(integral));
+	//		PID_right_out = (ks(right_error)) - (kp(proportional)) - (kd(differential));
+	//		PID_right_out = (ks(right_error)) - (kp(proportional)) - (ki(integral)) - (kd(differential));
+	//		PID_left_out = (ks(right_error)) - (kp(proportional)) - (ki(integral));
 			
 			PWM_RIGHT += PID_right_out;	
 						
-			printf_P(PSTR(" difference: %d					difference_sum: %d \n"),difference,difference_sum); // For testing with PuTTy.
+			printf_P(PSTR(" difference: %d					difference_sum: %d \n"),differential,proportional); // For testing with PuTTy.
 			printf_P(PSTR(" Left PWM: %d  ticks: %d				"),PWM_LEFT,lefttick); // For testing with PuTTy.
-			printf_P(PSTR(" Right PWM: %d  ticks: %d			 \n \n \n"),PWM_RIGHT,righttick);
-						
+			printf_P(PSTR(" Right PWM: %d  ticks: %d			 \n"),PWM_RIGHT,righttick);
+			printf_P(PSTR(" PWM LMOD: %d						"),PID_left_out); // For testing with PuTTy.
+			printf_P(PSTR(" PWM RMOD: %d					 \n \n \n"),PID_right_out);
+			
+			
 			timer2 = 0;
-			reset_encoders();
-		}
+			old_err = proportional;
+		}/*
+		if((proportional > 10)||(proportional < 10)){
+			proportional =0;
+		}*/
 	}
 	/*brake the wheels*/
 	brake();
-	
 }
 
 /*
 This is the main motor control algorithm. It takes a direction, distance and two speeds as input.
-
 */
 
-void direction_control(enum DIRECTION dir, uint16_t distance, uint8_t left_speed, uint8_t right_speed){
+void direction_control(enum DIRECTION dir, uint8_t distance, uint8_t left_speed, uint8_t right_speed){
 	switch(dir){
 		case FORWARD:
 			PORTB |= ((1<<PB2)|(1<<PB0));
@@ -85,18 +109,18 @@ void direction_control(enum DIRECTION dir, uint16_t distance, uint8_t left_speed
 			should move 90 deg*/
 			PORTB &= ~(1<<PINB0);
 			PORTB |= (1<<PINB2);
-			PWM_RIGHT = 60;
-			PWM_LEFT = 60;
-			mcs(13,2,2);
+			PWM_RIGHT = 50;
+			PWM_LEFT = 50;
+			mcs(13,4,4);
 			break;
 		case LEFT:
 			/*make the left wheel go in reverse at speed 2 and distance 13
 			should move 90 deg*/
 			PORTB &= ~(1<<PINB2);
 			PORTB |= (1<<PINB0);
-			PWM_RIGHT = 60;
-			PWM_LEFT = 60;
-			mcs(13,2,2);
+			PWM_RIGHT = 50;
+			PWM_LEFT = 50;
+			mcs(13,4,4);
 			break;
 		};
 	
@@ -162,9 +186,8 @@ void PWM_SETUP(void)
 	TCCR0A = (1<<WGM00);		//Phase correct PWM mode.
 	TCCR0A |= (1<<COM0B1)|(1<<COM0A1);		// Clears on count up, sets on count down. Symmetric about peak value 0xFF.
 
-	TCCR0B = (1<<CS01)|(1<<CS00);			//prescaler 8
-	// TIMSK0 = (1<<OCIE0A)|(1<<OCIE0B); // enable compare interrupt
-	//Interrupt mask enables
+	TCCR0B = (1<<CS01)|(1<<CS00);			//prescaler 64
+	// TIMSK0 = (1<<OCIE0A)|(1<<OCIE0B); // enable compare interrupt vector.
 	PWM_LEFT = 0;				//(sets the pin to logic 1 AKA sets motors to STOP)
 	PWM_RIGHT = 0;
 	return;
